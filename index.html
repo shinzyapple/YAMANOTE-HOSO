@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>外部設定で音声再生</title>
+  <title>文字検出で音声切り替え</title>
 </head>
 <body>
   <h2>カメラ映像から文字検出</h2>
@@ -10,6 +10,7 @@
   <canvas id="canvas" width="400" height="300" style="display:none;"></canvas>
   <p id="result">検出結果: </p>
 
+  <!-- 音声ファイル -->
   <audio id="audio" src="" preload="auto"></audio>
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
@@ -20,48 +21,40 @@
     const result = document.getElementById('result');
     const audio = document.getElementById('audio');
 
-    let wordMap = {};               // 外部から読み込む単語と音声のマッピング
-    const detectedWords = new Set(); // 重複検出防止
+    // 検出する文字と対応する音声ファイルを定義
+    const audioMap = {
+      "綾瀬": "audio/1.wav",
+      "亀有": "audio/3.wav",
+    };
 
-    // カメラ起動
+    let detectedWords = new Set();
+
     navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
       video.srcObject = stream;
     }).catch(err => {
       alert("カメラにアクセスできません: " + err);
     });
 
-    // 外部JSONを読み込む
-    fetch('words.json')
-      .then(response => response.json())
-      .then(data => {
-        wordMap = data;
-        startOCR(); // OCR開始
-      })
-      .catch(err => {
-        alert("単語設定ファイルの読み込みに失敗しました: " + err);
-      });
+    setInterval(() => {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      Tesseract.recognize(canvas, 'jpn', {
+        logger: m => console.log(m)
+      }).then(({ data: { text } }) => {
+        result.innerText = "検出結果: " + text;
 
-    function startOCR() {
-      setInterval(() => {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        Tesseract.recognize(canvas, 'jpn', {
-          logger: m => console.log(m)
-        }).then(({ data: { text } }) => {
-          result.innerText = "検出結果: " + text;
-
-          for (const word in wordMap) {
-            if (text.includes(word) && !detectedWords.has(word)) {
-              detectedWords.add(word);
-              playAudio(wordMap[word]);
-              break;
-            }
+        // 検出した文字に対応する音声があれば再生
+        for (const word in audioMap) {
+          if (text.includes(word) && !detectedWords.has(word)) {
+            detectedWords.add(word);
+            playAudio(audioMap[word]);
+            break;
           }
-        });
-      }, 4000);
-    }
+        }
+      });
+    }, 4000);
 
-    function playAudio(filePath) {
-      audio.src = filePath;
+    function playAudio(fileName) {
+      audio.src = fileName;
       audio.play().catch(err => {
         console.log("音声再生エラー:", err);
       });
