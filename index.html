@@ -1,16 +1,15 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>文字検出で音声切り替え</title>
+  <title>English Text Detection</title>
 </head>
 <body>
-  <h2>カメラ映像から文字検出</h2>
+  <h2>Detect English Text from Webcam</h2>
   <video id="video" width="400" height="300" autoplay playsinline></video>
   <canvas id="canvas" width="400" height="300" style="display:none;"></canvas>
-  <p id="result">検出結果: </p>
+  <p id="result">Detected: </p>
 
-  <!-- 音声ファイル -->
   <audio id="audio" src="" preload="auto"></audio>
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
@@ -21,42 +20,48 @@
     const result = document.getElementById('result');
     const audio = document.getElementById('audio');
 
-    // 検出する文字と対応する音声ファイルを定義
-    const audioMap = {
-      "Ayase": "audio/1.wav",
-      "Kameari": "audio/3.wav",
-    };
-
-    let detectedWords = new Set();
+    let wordMap = {};
+    const detectedWords = new Set();
 
     navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
       video.srcObject = stream;
     }).catch(err => {
-      alert("カメラにアクセスできません: " + err);
+      alert("Cannot access camera: " + err);
     });
 
-    setInterval(() => {
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      Tesseract.recognize(canvas, 'jpn', {
-        logger: m => console.log(m)
-      }).then(({ data: { text } }) => {
-        result.innerText = "検出結果: " + text;
-
-        // 検出した文字に対応する音声があれば再生
-        for (const word in audioMap) {
-          if (text.includes(word) && !detectedWords.has(word)) {
-            detectedWords.add(word);
-            playAudio(audioMap[word]);
-            break;
-          }
-        }
+    fetch('words.json')
+      .then(response => response.json())
+      .then(data => {
+        wordMap = data;
+        startOCR();
+      })
+      .catch(err => {
+        alert("Failed to load word map: " + err);
       });
-    }, 4000);
 
-    function playAudio(fileName) {
-      audio.src = fileName;
+    function startOCR() {
+      setInterval(() => {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        Tesseract.recognize(canvas, 'eng', {
+          logger: m => console.log(m)
+        }).then(({ data: { text } }) => {
+          result.innerText = "Detected: " + text;
+
+          for (const word in wordMap) {
+            if (text.toLowerCase().includes(word.toLowerCase()) && !detectedWords.has(word)) {
+              detectedWords.add(word);
+              playAudio(wordMap[word]);
+              break;
+            }
+          }
+        });
+      }, 4000);
+    }
+
+    function playAudio(filePath) {
+      audio.src = filePath;
       audio.play().catch(err => {
-        console.log("音声再生エラー:", err);
+        console.log("Audio error:", err);
       });
     }
   </script>
